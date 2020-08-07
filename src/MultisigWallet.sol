@@ -103,6 +103,29 @@ contract MultiSigWallet {
         emit Deposit(msg.sender, msg.value);
     }
 
+    /**
+    * @notice Log an 'anonymous' event with a constant 6 words of calldata
+    * and four indexed topics: the selector and the first three args
+    **/
+    modifier emitLog {
+        //
+        //
+        _;
+        assembly {
+            let mark := mload(0x40)                   // end of memory ensures zero
+            mstore(0x40, add(mark, 288))              // update free memory pointer
+            mstore(mark, 0x20)                        // bytes type data offset
+            mstore(add(mark, 0x20), 224)              // bytes size (padded)
+            calldatacopy(add(mark, 0x40), 0, 224)     // bytes payload
+            log4(mark, 288,                           // calldata
+                 shl(224, shr(224, calldataload(0))), // msg.sig
+                 calldataload(4),                     // arg1
+                 calldataload(36),                    // arg2
+                 calldataload(68)                     // arg3
+                )
+        }
+    }
+
     /*
      * Public functions
      */
@@ -127,6 +150,7 @@ contract MultiSigWallet {
     function addOwner(address owner)
         public
         onlyWallet
+        emitLog
         ownerDoesNotExist(owner)
         notNull(owner)
         validRequirement(owners.length + 1, required)
@@ -141,6 +165,7 @@ contract MultiSigWallet {
     function removeOwner(address owner)
         public
         onlyWallet
+        emitLog
         ownerExists(owner)
     {
         isOwner[owner] = false;
@@ -161,6 +186,7 @@ contract MultiSigWallet {
     function replaceOwner(address owner, address newOwner)
         public
         onlyWallet
+        emitLog
         ownerExists(owner)
         ownerDoesNotExist(newOwner)
     {
@@ -180,6 +206,7 @@ contract MultiSigWallet {
     function changeRequirement(uint _required)
         public
         onlyWallet
+        emitLog
         validRequirement(owners.length, _required)
     {
         required = _required;
@@ -193,6 +220,7 @@ contract MultiSigWallet {
     /// @return transactionId Returns transaction ID.
     function submitTransaction(string memory metadata, address destination, uint value, bytes memory data)
         public
+        emitLog
         returns (uint transactionId)
     {
         transactionId = addTransaction(metadata, destination, value, data);
@@ -203,6 +231,7 @@ contract MultiSigWallet {
     /// @param transactionId Transaction ID.
     function confirmTransaction(uint transactionId)
         public
+        emitLog
         ownerExists(msg.sender)
         transactionExists(transactionId)
         notConfirmed(transactionId, msg.sender)
@@ -216,6 +245,7 @@ contract MultiSigWallet {
     /// @param transactionId Transaction ID.
     function revokeConfirmation(uint transactionId)
         public
+        emitLog
         ownerExists(msg.sender)
         confirmed(transactionId, msg.sender)
         notExecuted(transactionId)
@@ -228,6 +258,7 @@ contract MultiSigWallet {
     /// @param transactionId Transaction ID.
     function executeTransaction(uint transactionId)
         public
+        emitLog
         ownerExists(msg.sender)
         notExecuted(transactionId)
         returns (bytes memory)
